@@ -2,60 +2,59 @@ import requests
 from datetime import datetime, timedelta
 import time
 
-def run_fare_check():
-    # --- CONFIGURATION (Change these if needed) ---
-    FROM_STATION = "Bergen"
-    TO_STATION = "Moss"
+def run_entur_check():
+    # --- CONFIGURATION ---
+    # These are Entur IDs for Bergen and Moss
+    FROM_ID = "NSR:StopPlace:59885"  # Bergen Stasjon
+    TO_ID = "NSR:StopPlace:58957"    # Moss Stasjon
     DAYS_TO_SCAN = 28
-    MAX_PRICE = 950  # We will mark prices below this with an alert
-    
-    print(f"--- Fare Report: {datetime.now().strftime('%Y-%m-%d')} ---")
-    print(f"Searching for {FROM_STATION} to {TO_STATION} for the next {DAYS_TO_SCAN} days...")
+    MAX_PRICE = 950 
 
-    # Vy's API headers to look like a real browser
+    print(f"--- Fare Report: {datetime.now().strftime('%Y-%m-%d')} ---")
+    
+    # Entur requires you to identify your script with a header
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "ET-Client-Name": "my-personal-fare-tracker",
         "Accept": "application/json"
     }
 
     for i in range(DAYS_TO_SCAN):
-        # Calculate the target date
-        target_date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
+        date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
         
-        url = "https://api.vy.no/travel-options/search"
-        params = {
-            "from": FROM_STATION,
-            "to": TO_STATION,
-            "date": target_date,
+        # Entur's official price search API
+        url = f"https://api.entur.io/offers/v1/search/trip-options"
+        
+        payload = {
+            "from": {"id": FROM_ID},
+            "to": {"id": TO_ID},
+            "searchTime": f"{date}T08:00:00.000Z", # Checking morning trains
             "adultCount": 1
         }
 
         try:
-            response = requests.get(url, params=params, headers=headers, timeout=10)
+            response = requests.post(url, json=payload, headers=headers, timeout=15)
             
             if response.status_code == 200:
                 data = response.json()
-                itineraries = data.get('itineraries', [])
+                # Finding the cheapest price in the Entur response
+                offers = data.get('offers', [])
+                prices = [o.get('totalPrice', {}).get('amount') for o in offers if o.get('totalPrice')]
                 
-                # Extract all prices for this day
-                day_prices = [it.get('price', {}).get('amount') for it in itineraries if it.get('price')]
-                
-                if day_prices:
-                    cheapest = min(day_prices)
+                if prices:
+                    cheapest = min(prices)
                     status = "✅ DEAL!" if cheapest <= MAX_PRICE else "ℹ️"
-                    print(f"{status} {target_date}: {cheapest} NOK")
+                    print(f"{status} {date}: {cheapest} NOK")
                 else:
-                    print(f"ℹ️ {target_date}: No prices found")
+                    print(f"ℹ️ {date}: No prices found (Check if booking is open)")
             else:
-                print(f"❌ {target_date}: Vy returned error {response.status_code}")
+                print(f"❌ {date}: Error {response.status_code}")
                 
         except Exception as e:
-            print(f"❌ {target_date}: Technical error ({str(e)})")
+            print(f"❌ {date}: Technical error ({str(e)})")
 
-        # Wait 1 second to avoid being blocked as a bot
-        time.sleep(1)
+        time.sleep(1) # Be polite to the API
 
     print("--- Check Complete ---")
 
 if __name__ == "__main__":
-    run_fare_check()
+    run_entur_check()
