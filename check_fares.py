@@ -1,11 +1,10 @@
 import requests
 from datetime import datetime, timedelta
 import time
-import json # Required for printing raw JSON for debugging
+import json
 
 def run_fare_check():
     # --- CONFIGURATION ---
-    # Stops: Bergen to Oslo (Example)
     FROM_ID = "NSR:StopPlace:59885"
     TO_ID = "NSR:StopPlace:58957"
     DAYS_TO_SCAN = 14
@@ -23,19 +22,21 @@ def run_fare_check():
         
         url = "https://api.entur.io/journey-planner/v3/graphql"
         
-        # GraphQL query to fetch trip patterns and prices
+        # --- CORRECTED GRAPHQL QUERY ---
         query = """
         {
           trip(
             from: { place: "%s" }
             to: { place: "%s" }
             dateTime: "%sT08:00:00"
-            searchMode: FORWARD
           ) {
             tripPatterns {
               expectedStartTime
               expectedEndTime
-              price {
+              legs {
+                mode
+              }
+              estimatedPrices {
                 amount
                 currency
               }
@@ -50,7 +51,6 @@ def run_fare_check():
             if response.status_code == 200:
                 data = response.json()
                 
-                # Check for errors in the GraphQL response
                 if 'errors' in data:
                     print(f"❌ {date}: GraphQL Error: {data['errors']}")
                     continue
@@ -59,26 +59,25 @@ def run_fare_check():
                 
                 prices = []
                 for t in trips:
-                    if t.get('price') and t['price'].get('amount'):
-                        prices.append(t['price']['amount'])
+                    # Look inside estimatedPrices
+                    if t.get('estimatedPrices'):
+                        for price_info in t['estimatedPrices']:
+                            if price_info.get('amount'):
+                                prices.append(price_info['amount'])
                 
                 if prices:
                     cheapest = min(prices)
                     status = "✅ DEAL!" if cheapest <= MAX_PRICE else "ℹ️"
                     print(f"{status} {date}: {cheapest} NOK")
                 else:
-                    print(f"ℹ️ {date}: No prices found in response.")
-                    # --- DEBUG: Print Raw Response ---
-                    print(f"--- DEBUG: Raw Response for {date} ---")
-                    print(json.dumps(data, indent=2))
-                    print("-----------------------------------")
+                    print(f"ℹ️ {date}: No prices found (or tickets not yet released).")
+                    
             else:
                 print(f"❌ {date}: API Error {response.status_code}")
                 
         except Exception as e:
             print(f"❌ {date}: Script Error ({str(e)})")
 
-        # Be nice to the API
         time.sleep(1)
 
     print("--- Check Complete ---")
