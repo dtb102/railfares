@@ -4,59 +4,71 @@ import time
 
 def run_fare_check():
     # --- CONFIGURATION ---
-    # These are the official IDs for Bergen and Moss from the National Stop Register
-    FROM_ID = "NSR:StopPlace:59885"  # Bergen Stasjon
-    TO_ID = "NSR:StopPlace:58957"    # Moss Stasjon
-    DAYS_TO_SCAN = 14
+    # Bergen Stasjon (NSR:StopPlace:59885) to Moss Stasjon (NSR:StopPlace:58957)
+    FROM_ID = "NSR:StopPlace:59885"
+    TO_ID = "NSR:StopPlace:58957"
+    DAYS_TO_SCAN = 14  # As you requested
     MAX_PRICE = 950 
 
     print(f"--- Fare Report: {datetime.now().strftime('%Y-%m-%d')} ---")
-    print(f"Scanning for {DAYS_TO_SCAN} days using Entur Open Data...")
-
-    # Entur requires identifying your script with this header
+    
+    # Identify yourself to Entur
     headers = {
-        "ET-Client-Name": "my-personal-fare-tracker",
-        "Accept": "application/json"
+        "ET-Client-Name": "private-fare-tracker-2026",
+        "Content-Type": "application/json"
     }
 
     for i in range(DAYS_TO_SCAN):
-        # Calculate the date and format for Entur
         date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
         
-        # Entur Offers API URL
-        url = "https://api.entur.io/offers/v1/search/trip-options"
+        # Using the v3 Production GraphQL API
+        url = "https://api.entur.io/journey-planner/v3/graphql"
         
-        payload = {
-            "from": {"id": FROM_ID},
-            "to": {"id": TO_ID},
-            "searchTime": f"{date}T08:00:00.000Z", # Morning search
-            "adultCount": 1
+        # This query specifically asks for the "cheapest" price for the day
+        query = """
+        {
+          trip(
+            from: { place: "%s" }
+            to: { place: "%s" }
+            dateTime: "%sT08:00:00"
+          ) {
+            tripPatterns {
+              expectedStartTime
+              expectedEndTime
+              price {
+                amount
+                currency
+              }
+            }
+          }
         }
+        """ % (FROM_ID, TO_ID, date)
 
         try:
-            # We use POST for the Entur search
-            response = requests.post(url, json=payload, headers=headers, timeout=15)
+            response = requests.post(url, json={'query': query}, headers=headers, timeout=15)
             
             if response.status_code == 200:
                 data = response.json()
-                offers = data.get('offers', [])
+                trips = data.get('data', {}).get('trip', {}).get('tripPatterns', [])
                 
-                # Extract prices
-                prices = [o.get('totalPrice', {}).get('amount') for o in offers if o.get('totalPrice')]
+                # Filter to find the lowest valid price
+                prices = [t['price']['amount'] for t in trips if t.get('price')]
                 
                 if prices:
                     cheapest = min(prices)
                     status = "✅ DEAL!" if cheapest <= MAX_PRICE else "ℹ️"
                     print(f"{status} {date}: {cheapest} NOK")
                 else:
-                    print(f"ℹ️ {date}: No prices found in current booking window")
+                    # If no prices, it might be too far in the future
+                    print(f"ℹ️ {date}: No prices found (Booking may not be open yet)")
             else:
                 print(f"❌ {date}: API Error {response.status_code}")
                 
         except Exception as e:
-            print(f"❌ {date}: Connection issue ({str(e)})")
+            print(f"❌ {date}: Script Error ({str(e)})")
 
-        time.sleep(0.5) # Be polite to the national API
+        # Entur allows about 30 requests per minute on this free tier
+        time.sleep(1)
 
     print("--- Check Complete ---")
 
