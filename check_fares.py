@@ -8,24 +8,19 @@ def check_fares():
         "Content-Type": "application/json"
     }
 
-    # Updated query following the schema structure
+    # Trying a broader query to find where the fares are located
     query = """
     {
       trip(from: {place: "NSR:StopPlace:58223"}, to: {place: "NSR:StopPlace:58222"}, dateTime: "2026-03-01T08:00:00") {
         tripPatterns {
           duration
+          fares {
+            id
+            currency
+            price
+          }
           legs {
             mode
-            serviceJourney {
-              estimatedCalls {
-                # Look for fare info in the journey details
-                forfeit {
-                  id
-                  currency
-                  price
-                }
-              }
-            }
           }
         }
       }
