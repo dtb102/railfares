@@ -1,59 +1,33 @@
 import requests
-from datetime import datetime, timedelta
-import time
 import sys
 
-def run_fare_check():
-    # Bergen Stasjon to Moss Stasjon
-    FROM_ID = "NSR:StopPlace:59885"
-    TO_ID = "NSR:StopPlace:58957"
-    DAYS_TO_SCAN = 2
-    
-    print(f"--- VERBOSE Report: {datetime.now().strftime('%Y-%m-%d')} ---")
+def run_network_diagnostic():
+    print("--- Starting Network Diagnostic ---")
     sys.stdout.flush()
 
+    # Testing a simpler API endpoint: Geocoder
+    url = "https://api.entur.io/geocoder/v1/autocomplete"
+    params = {"text": "Oslo", "size": 1}
+    
     headers = {
-        "ET-Client-Name": "personal-fare-checker-2026",
-        "Content-Type": "application/json"
+        "ET-Client-Name": "network-diagnostic-2026",
     }
 
-    # Test only 2 days to keep the log small
-    for i in range(DAYS_TO_SCAN):
-        date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
-        print(f"Attempting to check: {date}")
+    try:
+        print(f"Connecting to {url}...")
         sys.stdout.flush()
         
-        url = "https://api.entur.io/journey-planner/v3/graphql"
+        # Test GET request
+        response = requests.get(url, params=params, headers=headers, timeout=10)
         
-        # Explicit query
-        query = """
-        {
-          trip(from: {place: "%s"}, to: {place: "%s"}, dateTime: "%sT08:00:00") {
-            tripPatterns {
-              price { amount }
-            }
-          }
-        }
-        """ % (FROM_ID, TO_ID, date)
-
-        try:
-            print("Sending request...")
-            sys.stdout.flush()
-            response = requests.post(url, json={'query': query}, headers=headers, timeout=15)
-            
-            print(f"Status Code: {response.status_code}")
-            # --- THIS LINE IS THE KEY ---
-            print(f"Raw Response: {response.text}")
-            sys.stdout.flush()
-            
-        except Exception as e:
-            print(f"❌ Connection Error: {str(e)}")
-            sys.stdout.flush()
-
-        time.sleep(1)
-
-    print("--- Check Complete ---")
+        print(f"Response Status Code: {response.status_code}")
+        print(f"Response Body: {response.text}")
+        
+    except Exception as e:
+        print(f"❌ Connection FAILED: {str(e)}")
+        
     sys.stdout.flush()
+    print("--- Diagnostic Complete ---")
 
 if __name__ == "__main__":
-    run_fare_check()
+    run_network_diagnostic()
