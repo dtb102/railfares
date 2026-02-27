@@ -1,22 +1,28 @@
 import requests
-from datetime import datetime, timedelta
-import time
+from datetime import datetime
 import sys
+import socket # Added for network debugging
 
 # --- FORCE LINE BUFFERING ---
-# This ensures that every 'print' is sent to the log immediately
 sys.stdout.reconfigure(line_buffering=True) 
 
 def run_debug_check():
     print("--- Starting Detailed Debugger ---")
     
+    # 1. TEST NETWORK CONNECTION FIRST
+    target_host = "api.entur.io"
+    print(f"Testing DNS resolution for {target_host}...")
+    try:
+        socket.gethostbyname(target_host)
+        print(f"✅ DNS Resolved successfully.")
+    except socket.gaierror as e:
+        print(f"❌ DNS ERROR: Could not resolve {target_host}. {e}")
+        return # Stop here
+
     # Official NSR IDs
     FROM_ID = "NSR:StopPlace:59885" # Bergen
     TO_ID = "NSR:StopPlace:58957"   # Moss
-    
-    # Check just 1 day to keep it fast
     date = datetime.now().strftime('%Y-%m-%d')
-    print(f"Testing date: {date}")
     
     # Mandatory Header for 2026
     headers = {
@@ -43,12 +49,13 @@ def run_debug_check():
         response = requests.post(url, json={'query': query}, headers=headers, timeout=10)
         
         print(f"Response Status Code: {response.status_code}")
-        
-        # --- THIS IS THE KEY ---
         print(f"Raw Response Text: {response.text}")
         
+    except requests.exceptions.Timeout:
+        print("❌ NETWORK ERROR: Request timed out (10s). The server took too long.")
+    except requests.exceptions.ConnectionError:
+        print("❌ NETWORK ERROR: Failed to connect to the server.")
     except requests.exceptions.RequestException as e:
-        # This catches DNS failures, timeouts, and network blocks
         print(f"❌ NETWORK ERROR: {str(e)}")
     except Exception as e:
         print(f"❌ UNKNOWN ERROR: {str(e)}")
