@@ -1,67 +1,68 @@
 import requests
 from datetime import datetime, timedelta
+import time
 
-# IDs for Bergen and Moss (Entur StopPlace IDs)
-ORIGIN = "NSR:StopPlace:37369"  # Bergen
-DESTINATION = "NSR:StopPlace:59885"  # Moss
+# Settings
+ORIGIN = "Bergen"
+DESTINATION = "Moss"
 DAYS_TO_CHECK = 28
-PRICE_THRESHOLD = 300  # Notify if cheaper than this (in NOK)
+PRICE_THRESHOLD = 399 # Notify if cheaper than this
 
-def get_cheapest_fare(date):
-    url = "https://api.entur.io/journey-planner/v3/graphql"
-    
-    # GraphQL query to find trips and approximate prices
-    query = """
-    {
-      trip(
-        from: { place: "%s" }
-        to: { place: "%s" }
-        dateTime: "%sT06:00:00.000Z"
-        numVariants: 20
-      ) {
-        tripPatterns {
-          startTime
-          expectedArrivalTime
-          legs {
-            line { name }
-          }
-          # Note: Real-time commercial prices often require a specific 
-          # ticket offer query, but we can look for the 'Lowfare' category.
-        }
-      }
-    }
-    """ % (ORIGIN, DESTINATION, date)
+# We use a header to identify the script as a search routine
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) FareChecker/1.0",
+    "Accept": "application/json"
+}
 
-    # Note: For production scripts, Vy's internal web API is often more 
-    # reliable for price-specific scraping than the open JourneyPlanner.
-    # Below is a simplified request logic for the Vy Web API:
-    vy_url = f"https://api.vy.no/travel-options/search"
+def get_fare(date):
+    # Public Vy Search API
+    url = "https://api.vy.no/travel-options/search"
     params = {
-        "from": "Bergen",
-        "to": "Moss",
+        "from": ORIGIN,
+        "to": DESTINATION,
         "date": date,
-        "adultCount": 1,
-        "studentCount": 0
+        "adultCount": 1
     }
     
     try:
-        # We simulate a search against the Vy search endpoint
-        # This endpoint structure is what the Vy website uses
-        response = requests.get(vy_url, params=params)
-        data = response.json()
+        response = requests.get(url, params=params, headers=HEADERS, timeout=15)
         
-        # Logic to find the minimum price in the returned options
-        prices = [opt['price']['amount'] for opt in data.get('itineraries', []) if 'price' in opt]
-        return min(prices) if prices else None
-    except:
-        return None
+        # If we get blocked (Error 403), this will tell us
+        if response.status_code != 200:
+            return f"Status {response.status_code}"
 
+        data = response.json()
+        itineraries = data.get('itineraries', [])
+        
+        prices = []
+        for trip in itineraries:
+            price_val = trip.get('price', {}).get('amount')
+            if price_val:
+                prices.append(price_val)
+        
+        return min(prices) if prices else "No prices found"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# --- Execution Start ---
 print(f"--- Fare Report: {datetime.now().strftime('%Y-%m-%d')} ---")
+print(f"Checking {DAYS_TO_CHECK} days from {ORIGIN} to {DESTINATION}...")
+
 for i in range(DAYS_TO_CHECK):
+    # Calculate each date
     check_date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
-    cheapest = get_cheapest_fare(check_date)
     
-    if cheapest and cheapest <= PRICE_THRESHOLD:
-        print(f"✅ ALERT: {check_date} is only {cheapest} NOK!")
-    elif cheapest:
-        print(f"ℹ️ {check_date}: {cheapest} NOK")
+    # Get the price
+    result = get_fare(check_date)
+    
+    # Print results immediately so we see progress in the logs
+    if isinstance(result, (int, float)):
+        icon = "✅" if result <= PRICE_THRESHOLD else "ℹ️"
+        print(f"{icon} {check_date}: {result} NOK")
+    else:
+        print(f"❌ {check_date}: {result}")
+    
+    # Wait 1 second between requests to avoid being blocked
+    time.sleep(1)
+
+print("--- Check Finished ---")
