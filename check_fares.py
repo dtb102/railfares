@@ -6,7 +6,7 @@ import time
 ORIGIN = "Bergen"
 DESTINATION = "Moss"
 DAYS_TO_CHECK = 28
-PRICE_THRESHOLD = 399 # Notify if cheaper than this
+PRICE_THRESHOLD = 699 # Notify if cheaper than this
 
 # We use a header to identify the script as a search routine
 HEADERS = {
