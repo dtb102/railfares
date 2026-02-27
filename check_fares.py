@@ -3,8 +3,9 @@ from datetime import datetime, timedelta
 import time
 import sys
 
-# Forces immediate output to the log file
-sys.stdout.reconfigure(line_buffering=True)
+# --- FORCE LINE BUFFERING ---
+# This ensures that every 'print' is sent to the log immediately
+sys.stdout.reconfigure(line_buffering=True) 
 
 def run_debug_check():
     print("--- Starting Detailed Debugger ---")
@@ -43,10 +44,8 @@ def run_debug_check():
         
         print(f"Response Status Code: {response.status_code}")
         
-        if response.status_code == 200:
-            print(f"✅ Success! Raw Response Text: {response.text}")
-        else:
-            print(f"❌ API Error! Raw Response Text: {response.text}")
+        # --- THIS IS THE KEY ---
+        print(f"Raw Response Text: {response.text}")
         
     except requests.exceptions.RequestException as e:
         # This catches DNS failures, timeouts, and network blocks
