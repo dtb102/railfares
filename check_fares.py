@@ -1,66 +1,48 @@
-import requests
-from datetime import datetime
+import subprocess
 import sys
-import socket # Added for network debugging
 
 # --- FORCE LINE BUFFERING ---
 sys.stdout.reconfigure(line_buffering=True) 
 
-def run_debug_check():
-    print("--- Starting Detailed Debugger ---")
-    
-    # 1. TEST NETWORK CONNECTION FIRST
-    target_host = "api.entur.io"
-    print(f"Testing DNS resolution for {target_host}...")
-    try:
-        socket.gethostbyname(target_host)
-        print(f"✅ DNS Resolved successfully.")
-    except socket.gaierror as e:
-        print(f"❌ DNS ERROR: Could not resolve {target_host}. {e}")
-        return # Stop here
-
-    # Official NSR IDs
-    FROM_ID = "NSR:StopPlace:59885" # Bergen
-    TO_ID = "NSR:StopPlace:58957"   # Moss
-    date = datetime.now().strftime('%Y-%m-%d')
-    
-    # Mandatory Header for 2026
-    headers = {
-        "ET-Client-Name": "detailed-debug-tracker-2026",
-        "Content-Type": "application/json"
-    }
+def run_network_diagnostics():
+    print("--- Starting Network Diagnostics ---")
     
     url = "https://api.entur.io/journey-planner/v3/graphql"
     
-    query = """
-    {
-      trip(from: {place: "%s"}, to: {place: "%s"}, dateTime: "%sT08:00:00") {
-        tripPatterns {
-          price { amount }
-        }
-      }
-    }
-    """ % (FROM_ID, TO_ID, date)
-
+    # We use curl to see exactly what happens at a low level
+    command = [
+        "curl", 
+        "-v",                # Verbose mode to see DNS and Handshake
+        "-H", "ET-Client-Name: debug-tracker-2026",
+        "-H", "Content-Type: application/json",
+        "-X", "POST",
+        "-d", '{"query": "{__schema{types{name}}}"}', # Simple query
+        url
+    ]
+    
+    print(f"Running command: {' '.join(command)}")
+    
     try:
-        print(f"Attempting POST request to {url}...")
+        # Run curl and capture output
+        result = subprocess.run(
+            command, 
+            capture_output=True, 
+            text=True, 
+            timeout=20 # 20 seconds
+        )
         
-        # A 10-second timeout allows us to see if the network is hanging
-        response = requests.post(url, json={'query': query}, headers=headers, timeout=10)
+        print("\n--- Curl Output (STDOUT) ---")
+        print(result.stdout)
         
-        print(f"Response Status Code: {response.status_code}")
-        print(f"Raw Response Text: {response.text}")
+        print("\n--- Curl Errors/Verbose (STDERR) ---")
+        print(result.stderr)
         
-    except requests.exceptions.Timeout:
-        print("❌ NETWORK ERROR: Request timed out (10s). The server took too long.")
-    except requests.exceptions.ConnectionError:
-        print("❌ NETWORK ERROR: Failed to connect to the server.")
-    except requests.exceptions.RequestException as e:
-        print(f"❌ NETWORK ERROR: {str(e)}")
+    except subprocess.TimeoutExpired:
+        print("❌ ERROR: Curl command timed out.")
     except Exception as e:
-        print(f"❌ UNKNOWN ERROR: {str(e)}")
+        print(f"❌ ERROR: {str(e)}")
         
-    print("--- Debugger Complete ---")
+    print("--- Diagnostics Complete ---")
 
 if __name__ == "__main__":
-    run_debug_check()
+    run_network_diagnostics()
