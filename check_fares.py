@@ -26,7 +26,6 @@ def run_fare_check_entur():
         search_date = target_date.strftime('%Y-%m-%d')
         
         # --- FIXED QUERY ---
-        # Removed 'startTime' from trip() and moved it inside the specific call structure
         query = """
         query($from: String!, $to: String!, $date: String!) {
           trip(
@@ -61,14 +60,15 @@ def run_fare_check_entur():
             if response.status_code == 200:
                 data = response.json()
                 
-                # Debug: Print raw response to ensure structure is correct now
-                # print(f"DEBUG RAW RESPONSE: {json.dumps(data, indent=2)}")
+                # --- DEBUG: Print raw response to understand data structure ---
+                print(f"DEBUG RAW DATA for {search_date}: {json.dumps(data, indent=2)}")
+                # ---------------------------------------------------------------
 
                 trips = data.get('data', {}).get('trip', {}).get('tripPatterns', [])
                 
                 prices = []
                 for trip in trips:
-                    # expectedPricing is often inside the legs now
+                    # expectedPricing is often inside the legs
                     for leg in trip.get('legs', []):
                         price_data = leg.get('expectedPricing')
                         if price_data and price_data.get('amount'):
