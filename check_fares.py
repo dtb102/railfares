@@ -1,28 +1,27 @@
 import requests
 from datetime import datetime, timedelta
 import time
-import sys # Mandatory for flushing the output
+import sys
 
-def run_debug_check():
-    # Bergen (NSR:StopPlace:59885) to Moss (NSR:StopPlace:58957)
+# Forces immediate output regardless of buffering
+sys.stdout.reconfigure(line_buffering=True) 
+
+def run_total_debug():
+    print("--- Starting Total Control Debugger ---")
+    
+    # Bergen to Moss IDs
     FROM_ID = "NSR:StopPlace:59885"
     TO_ID = "NSR:StopPlace:58957"
-    DAYS_TO_SCAN = 1
     
-    print(f"--- VERBOSE Report: {datetime.now().strftime('%Y-%m-%d')} ---")
-    sys.stdout.flush() # Force immediate print
-
-    # Entur requires identifying your script
+    # Test only 1 day to keep it fast
+    date = datetime.now().strftime('%Y-%m-%d')
+    print(f"Testing date: {date}")
+    
     headers = {
-        "ET-Client-Name": "robust-debug-tracker-2026",
+        "ET-Client-Name": "total-debug-tracker-2026",
         "Content-Type": "application/json"
     }
-
-    date = datetime.now().strftime('%Y-%m-%d')
-    print(f"Checking date: {date}")
-    sys.stdout.flush()
     
-    # Using the mandatory Journey Planner v3 API
     url = "https://api.entur.io/journey-planner/v3/graphql"
     
     query = """
@@ -36,25 +35,20 @@ def run_debug_check():
     """ % (FROM_ID, TO_ID, date)
 
     try:
-        print("Sending request to Entur...")
-        sys.stdout.flush()
+        print(f"Attempting POST request to {url}...")
+        # Add a short timeout to see if it hangs
+        response = requests.post(url, json={'query': query}, headers=headers, timeout=10)
         
-        # Make the API call
-        response = requests.post(url, json={'query': query}, headers=headers, timeout=15)
+        print(f"Response Status Code: {response.status_code}")
+        print(f"Response Text: {response.text}")
         
-        print(f"Status Code: {response.status_code}")
-        sys.stdout.flush()
-        
-        print(f"Raw Response: {response.text}")
-        sys.stdout.flush()
-        
+    except requests.exceptions.RequestException as e:
+        # This catches DNS failures, timeouts, and network blocks
+        print(f"❌ NETWORK ERROR: {str(e)}")
     except Exception as e:
-        # --- THIS CATCHES THE SILENT ERRORS ---
-        print(f"❌ CRITICAL ERROR: {str(e)}")
-        sys.stdout.flush()
-
-    print("--- Check Complete ---")
-    sys.stdout.flush()
+        print(f"❌ UNKNOWN ERROR: {str(e)}")
+        
+    print("--- Debugger Complete ---")
 
 if __name__ == "__main__":
-    run_debug_check()
+    run_total_debug()
