@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 import time
 
 # Settings
-DAYS_TO_CHECK = 28
-PRICE_THRESHOLD = 350 
+DAYS_TO_CHECK = 10
+PRICE_THRESHOLD = 450 
 
 def get_cheapest_fare(date):
     # Vy's web API endpoint
