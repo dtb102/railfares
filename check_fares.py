@@ -1,6 +1,7 @@
 import socket
 import ssl
 import sys
+import traceback
 
 # --- FORCE LINE BUFFERING ---
 sys.stdout.reconfigure(line_buffering=True) 
@@ -10,9 +11,8 @@ def diagnose_connection():
     host = "api.entur.io"
     port = 443
 
-    print(f"1. Attempting to connect to {host}:{port}...")
     try:
-        # Create a basic socket
+        print(f"1. Attempting to connect to {host}:{port}...")
         s = socket.create_connection((host, port), timeout=10)
         print("✅ Socket connected successfully.")
 
@@ -33,13 +33,12 @@ def diagnose_connection():
         print(response)
         
         ss.close()
+        print("--- Diagnostics Complete ---")
 
-    except socket.timeout:
-        print("❌ ERROR: Connection timed out.")
-    except Exception as e:
-        print(f"❌ ERROR: {str(e)}")
-
-    print("--- Diagnostics Complete ---")
+    except Exception:
+        print("❌ CRITICAL ERROR:")
+        traceback.print_exc() # This prints the full error stack trace
+        print("--- Diagnostics Complete (with errors) ---")
 
 if __name__ == "__main__":
     diagnose_connection()
