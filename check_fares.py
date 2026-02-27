@@ -22,7 +22,7 @@ def run_fare_check():
         
         url = "https://api.entur.io/journey-planner/v3/graphql"
         
-        # --- CORRECTED GRAPHQL QUERY ---
+        # --- RE-CORRECTED GRAPHQL QUERY ---
         query = """
         {
           trip(
@@ -35,7 +35,14 @@ def run_fare_check():
               expectedEndTime
               legs {
                 mode
+                serviceJourney {
+                  id
+                  line {
+                    id
+                  }
+                }
               }
+              # Fetching price via serviceJourney if available
               estimatedPrices {
                 amount
                 currency
@@ -59,7 +66,7 @@ def run_fare_check():
                 
                 prices = []
                 for t in trips:
-                    # Look inside estimatedPrices
+                    # Looking for prices inside tripPattern
                     if t.get('estimatedPrices'):
                         for price_info in t['estimatedPrices']:
                             if price_info.get('amount'):
@@ -70,7 +77,8 @@ def run_fare_check():
                     status = "✅ DEAL!" if cheapest <= MAX_PRICE else "ℹ️"
                     print(f"{status} {date}: {cheapest} NOK")
                 else:
-                    print(f"ℹ️ {date}: No prices found (or tickets not yet released).")
+                    # If we still have no prices, let's see why
+                    print(f"ℹ️ {date}: No prices found (No estimatedPrices field).")
                     
             else:
                 print(f"❌ {date}: API Error {response.status_code}")
