@@ -1,7 +1,7 @@
 import requests
 from datetime import datetime, timedelta
 import time
-import json
+import json # Import json for printing
 
 def run_fare_check():
     # --- CONFIGURATION ---
@@ -22,7 +22,7 @@ def run_fare_check():
         
         url = "https://api.entur.io/journey-planner/v3/graphql"
         
-        # Updated query to be broader if needed
+        # Using a broader search to see if any trains exist
         query = """
         {
           trip(
@@ -57,9 +57,8 @@ def run_fare_check():
                     status = "✅ DEAL!" if cheapest <= MAX_PRICE else "ℹ️"
                     print(f"{status} {date}: {cheapest} NOK")
                 else:
-                    # --- DEBUGGING ADDED HERE ---
                     print(f"ℹ️ {date}: No prices found in response.")
-                    # Uncomment the line below to see the raw API response for debugging
+                    # --- DEBUG: Print Raw Response ---
                     # print(json.dumps(data, indent=2))
             else:
                 print(f"❌ {date}: API Error {response.status_code}")
