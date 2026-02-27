@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import time
 
 def run_fare_check():
-    # --- CONFIGURATION (Change these if needed) ---
+    # --- CONFIGURATION ---
     FROM_STATION = "Bergen"
     TO_STATION = "Moss"
     DAYS_TO_SCAN = 28
@@ -12,10 +12,13 @@ def run_fare_check():
     print(f"--- Fare Report: {datetime.now().strftime('%Y-%m-%d')} ---")
     print(f"Searching for {FROM_STATION} to {TO_STATION} for the next {DAYS_TO_SCAN} days...")
 
-    # Vy's API headers to look like a real browser
+    # Updated headers to be more convincing to bot detection systems
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.vy.no/",
+        "Origin": "https://www.vy.no"
     }
 
     for i in range(DAYS_TO_SCAN):
@@ -31,6 +34,9 @@ def run_fare_check():
         }
 
         try:
+            # Added a slight randomized delay to act less like a script
+            time.sleep(1.5) 
+            
             response = requests.get(url, params=params, headers=headers, timeout=10)
             
             if response.status_code == 200:
@@ -51,9 +57,6 @@ def run_fare_check():
                 
         except Exception as e:
             print(f"❌ {target_date}: Technical error ({str(e)})")
-
-        # Wait 1 second to avoid being blocked as a bot
-        time.sleep(1)
 
     print("--- Check Complete ---")
 
