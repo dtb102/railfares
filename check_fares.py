@@ -1,64 +1,86 @@
 import requests
 from datetime import datetime, timedelta
 import time
+import json
 
-def run_fare_check():
+def run_fare_check_entur():
     # --- CONFIGURATION ---
+    # Entur uses IDs for stations, but for search, names usually work 
+    # if they are precise.
     FROM_STATION = "Bergen"
     TO_STATION = "Moss"
     DAYS_TO_SCAN = 28
-    MAX_PRICE = 450  # We will mark prices below this with an alert
+    MAX_PRICE = 450
     
-    print(f"--- Fare Report: {datetime.now().strftime('%Y-%m-%d')} ---")
-    print(f"Searching for {FROM_STATION} to {TO_STATION} for the next {DAYS_TO_SCAN} days...")
+    print(f"--- Entur Fare Report: {datetime.now().strftime('%Y-%m-%d')} ---")
+    print(f"Searching for {FROM_STATION} to {TO_STATION}...")
 
-    # Updated headers to be more convincing to bot detection systems
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://www.vy.no/",
-        "Origin": "https://www.vy.no"
+        "Content-Type": "application/json",
+        # Entur requests a specific User-Agent identifying your application
+        "ET-Client-Name": "railfares-bot-dtb102" 
     }
 
+    url = "https://api.entur.io/journey-planner/v3/graphql"
+
     for i in range(DAYS_TO_SCAN):
-        # Calculate the target date
-        target_date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
+        target_date = (datetime.now() + timedelta(days=i))
+        # Entur requires ISO 8601 format with timezone
+        start_time = target_date.strftime('%Y-%m-%dT00:00:00Z')
         
-        url = "https://api.vy.no/travel-options/search"
-        params = {
+        # GraphQL Query
+        query = """
+        query($from: String!, $to: String!, $date: DateTime!) {
+          trip(
+            from: {place: $from},
+            to: {place: $to},
+            startTime: $date,
+            transportModes: [{transportMode: rail}]
+          ) {
+            tripPatterns {
+              expectedPricing {
+                amount
+                currency
+              }
+            }
+          }
+        }
+        """
+        
+        variables = {
             "from": FROM_STATION,
             "to": TO_STATION,
-            "date": target_date,
-            "adultCount": 1
+            "date": start_time
         }
-
+        
         try:
-            # Added a slight randomized delay to act less like a script
-            time.sleep(1.5) 
-            
-            response = requests.get(url, params=params, headers=headers, timeout=10)
+            time.sleep(1) # Be polite
+            response = requests.post(url, json={"query": query, "variables": variables}, headers=headers, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
-                itineraries = data.get('itineraries', [])
+                trips = data.get('data', {}).get('trip', {}).get('tripPatterns', [])
                 
-                # Extract all prices for this day
-                day_prices = [it.get('price', {}).get('amount') for it in itineraries if it.get('price')]
+                prices = []
+                for trip in trips:
+                    price_data = trip.get('expectedPricing')
+                    if price_data and price_data.get('amount'):
+                        prices.append(price_data.get('amount'))
                 
-                if day_prices:
-                    cheapest = min(day_prices)
+                if prices:
+                    cheapest = min(prices)
                     status = "✅ DEAL!" if cheapest <= MAX_PRICE else "ℹ️"
-                    print(f"{status} {target_date}: {cheapest} NOK")
+                    print(f"{status} {target_date.strftime('%Y-%m-%d')}: {cheapest} NOK")
                 else:
-                    print(f"ℹ️ {target_date}: No prices found")
+                    print(f"ℹ️ {target_date.strftime('%Y-%m-%d')}: No prices found")
+                    
             else:
-                print(f"❌ {target_date}: Vy returned error {response.status_code}")
+                print(f"❌ {target_date.strftime('%Y-%m-%d')}: Entur returned error {response.status_code}")
                 
         except Exception as e:
-            print(f"❌ {target_date}: Technical error ({str(e)})")
+            print(f"❌ {target_date.strftime('%Y-%m-%d')}: Technical error ({str(e)})")
 
     print("--- Check Complete ---")
 
 if __name__ == "__main__":
-    run_fare_check()
+    run_fare_check_entur()
