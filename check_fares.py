@@ -22,7 +22,7 @@ def run_fare_check():
         
         url = "https://api.entur.io/journey-planner/v3/graphql"
         
-        # --- ATTEMPT #4: RESTRUCTURING QUERY ---
+        # --- ATTEMPT #5: MOVING PRICES INTO LEGS ---
         query = """
         {
           trip(
@@ -32,15 +32,16 @@ def run_fare_check():
           ) {
             tripPatterns {
               expectedStartTime
-              expectedEndTime
               legs {
                 mode
+                serviceJourney {
+                  # Trying to fetch prices via serviceJourney
+                  estimatedPrices {
+                    amount
+                    currency
+                  }
+                }
               }
-            }
-            # Attempting to fetch prices outside of tripPatterns
-            estimatedPrices {
-              amount
-              currency
             }
           }
         }
@@ -57,15 +58,23 @@ def run_fare_check():
                     continue
 
                 trip_data = data.get('data', {}).get('trip', {})
+                patterns = trip_data.get('tripPatterns', [])
                 
-                # Check for prices at the top level of the trip object
-                prices = trip_data.get('estimatedPrices', [])
-                
-                if prices:
-                    # Assuming we want the cheapest price if multiple are returned
-                    amount = min([p['amount'] for p in prices if 'amount' in p])
-                    status = "✅ DEAL!" if amount <= MAX_PRICE else "ℹ️"
-                    print(f"{status} {date}: {amount} NOK")
+                cheapest_trip = float('inf')
+                found_price = False
+
+                for pattern in patterns:
+                    for leg in pattern.get('legs', []):
+                        if leg.get('serviceJourney') and leg['serviceJourney'].get('estimatedPrices'):
+                            prices = leg['serviceJourney']['estimatedPrices']
+                            for p in prices:
+                                if 'amount' in p:
+                                    cheapest_trip = min(cheapest_trip, p['amount'])
+                                    found_price = True
+
+                if found_price:
+                    status = "✅ DEAL!" if cheapest_trip <= MAX_PRICE else "ℹ️"
+                    print(f"{status} {date}: {cheapest_trip} NOK")
                 else:
                     print(f"ℹ️ {date}: No prices found (estimatedPrices empty or missing).")
                     
