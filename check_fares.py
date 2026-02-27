@@ -8,26 +8,23 @@ def check_fares():
         "Content-Type": "application/json"
     }
 
-    # Trying a broader query to find where the fares are located
+    # Query to introspect the schema and find the correct field
     query = """
     {
-      trip(from: {place: "NSR:StopPlace:58223"}, to: {place: "NSR:StopPlace:58222"}, dateTime: "2026-03-01T08:00:00") {
-        tripPatterns {
-          duration
-          fares {
-            id
-            currency
-            price
-          }
-          legs {
-            mode
+      __type(name: "TripPattern") {
+        name
+        fields {
+          name
+          type {
+            name
+            kind
           }
         }
       }
     }
     """
 
-    print("--- Fetching Fares ---")
+    print("--- Fetching Schema Details ---")
     response = requests.post(url, json={'query': query}, headers=headers)
     
     if response.status_code == 200:
