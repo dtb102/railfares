@@ -8,23 +8,30 @@ def check_fares():
         "Content-Type": "application/json"
     }
 
-    # Query to introspect the schema and find the correct field
+    # Query structured to look for fares at the Trip level
     query = """
     {
-      __type(name: "TripPattern") {
-        name
-        fields {
-          name
-          type {
-            name
-            kind
+      trip(
+        from: {coordinates: {latitude: 59.9139, longitude: 10.7522}},
+        to: {coordinates: {latitude: 59.9495, longitude: 10.7495}},
+        dateTime: "2026-03-05T08:00:00"
+      ) {
+        tripPatterns {
+          startTime
+          duration
+          legs {
+            mode
           }
+        }
+        fares {
+          coins
+          currency
         }
       }
     }
     """
 
-    print("--- Fetching Schema Details ---")
+    print("--- Fetching Fares from Trip Level ---")
     response = requests.post(url, json={'query': query}, headers=headers)
     
     if response.status_code == 200:
