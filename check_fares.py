@@ -22,22 +22,26 @@ def run_fare_check_entur():
 
     for i in range(DAYS_TO_SCAN):
         target_date = (datetime.now() + timedelta(days=i))
-        # Start searching from 06:00
-        start_time = target_date.strftime('%Y-%m-%dT06:00:00Z')
+        # API expects ISO format
+        search_date = target_date.strftime('%Y-%m-%d')
         
-        # --- MODIFIED QUERY: Removed specific rail constraint ---
+        # --- FIXED QUERY ---
+        # Removed 'startTime' from trip() and moved it inside the specific call structure
         query = """
-        query($from: String!, $to: String!, $date: DateTime!) {
+        query($from: String!, $to: String!, $date: String!) {
           trip(
             from: {place: $from},
             to: {place: $to},
-            startTime: $date
+            date: $date
           ) {
             tripPatterns {
               startTime
-              expectedPricing {
-                amount
-                currency
+              duration
+              legs {
+                expectedPricing {
+                    amount
+                    currency
+                }
               }
             }
           }
@@ -47,7 +51,7 @@ def run_fare_check_entur():
         variables = {
             "from": FROM_STATION_ID,
             "to": TO_STATION_ID,
-            "date": start_time
+            "date": search_date
         }
         
         try:
@@ -57,17 +61,18 @@ def run_fare_check_entur():
             if response.status_code == 200:
                 data = response.json()
                 
-                # Debug: Print raw response for the first day to see what's happening
-                if i == 0:
-                    print(f"DEBUG RAW RESPONSE (Day 0): {json.dumps(data, indent=2)}")
+                # Debug: Print raw response to ensure structure is correct now
+                # print(f"DEBUG RAW RESPONSE: {json.dumps(data, indent=2)}")
 
                 trips = data.get('data', {}).get('trip', {}).get('tripPatterns', [])
                 
                 prices = []
                 for trip in trips:
-                    price_data = trip.get('expectedPricing')
-                    if price_data and price_data.get('amount'):
-                        prices.append(price_data.get('amount'))
+                    # expectedPricing is often inside the legs now
+                    for leg in trip.get('legs', []):
+                        price_data = leg.get('expectedPricing')
+                        if price_data and price_data.get('amount'):
+                            prices.append(price_data.get('amount'))
                 
                 if prices:
                     cheapest = min(prices)
