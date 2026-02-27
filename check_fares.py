@@ -1,55 +1,76 @@
 import requests
-import json
-import sys
-import datetime
+from datetime import datetime, timedelta
+import time
 
-# Configure logging to stdout
-def log(message):
-    print(f"[{datetime.datetime.now().isoformat()}] {message}", flush=True)
+def run_fare_check():
+    # --- CONFIGURATION ---
+    # Bergen Stasjon (NSR:StopPlace:59885) to Moss Stasjon (NSR:StopPlace:58957)
+    FROM_ID = "NSR:StopPlace:59885"
+    TO_ID = "NSR:StopPlace:58957"
+    DAYS_TO_SCAN = 14  # As you requested
+    MAX_PRICE = 950 
 
-def check_fares():
-    log("--- Starting Fare Check ---")
+    print(f"--- Fare Report: {datetime.now().strftime('%Y-%m-%d')} ---")
     
-    # Replace this with your actual API endpoint
-    url = "https://api.entur.io/..."
-    
-    # Ensure you include appropriate headers, especially User-Agent
+    # Identify yourself to Entur
     headers = {
-        "Content-Type": "application/json",
-        "User-Agent": "railfares-bot/1.0 (GitHub Action)"
-    }
-    
-    # Replace with your actual payload
-    payload = {
-        "query": "..."
+        "ET-Client-Name": "private-fare-tracker-2026",
+        "Content-Type": "application/json"
     }
 
-    try:
-        log(f"Sending request to {url}...")
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
+    for i in range(DAYS_TO_SCAN):
+        date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
         
-        # Raise an exception for HTTP errors (4xx or 5xx)
-        response.raise_for_status()
+        # Using the v3 Production GraphQL API
+        url = "https://api.entur.io/journey-planner/v3/graphql"
         
-        log("Request successful.")
-        data = response.json()
-        
-        # Process data here
-        # Example: print(json.dumps(data, indent=2))
-        
-        log("--- Fare Report: SUCCESS ---")
+        # This query specifically asks for the "cheapest" price for the day
+        query = """
+        {
+          trip(
+            from: { place: "%s" }
+            to: { place: "%s" }
+            dateTime: "%sT08:00:00"
+          ) {
+            tripPatterns {
+              expectedStartTime
+              expectedEndTime
+              price {
+                amount
+                currency
+              }
+            }
+          }
+        }
+        """ % (FROM_ID, TO_ID, date)
 
-    except requests.exceptions.HTTPError as http_err:
-        log(f"❌ HTTP error occurred: {http_err}")
-        log(f"Response Body: {response.text}")
-    except requests.exceptions.ConnectionError as conn_err:
-        log(f"❌ Connection error occurred: {conn_err}")
-    except requests.exceptions.Timeout as timeout_err:
-        log(f"❌ Timeout error occurred: {timeout_err}")
-    except requests.exceptions.RequestException as req_err:
-        log(f"❌ An error occurred: {req_err}")
-    except Exception as e:
-        log(f"❌ An unexpected error occurred: {e}")
+        try:
+            response = requests.post(url, json={'query': query}, headers=headers, timeout=15)
+            
+            if response.status_code == 200:
+                data = response.json()
+                trips = data.get('data', {}).get('trip', {}).get('tripPatterns', [])
+                
+                # Filter to find the lowest valid price
+                prices = [t['price']['amount'] for t in trips if t.get('price')]
+                
+                if prices:
+                    cheapest = min(prices)
+                    status = "✅ DEAL!" if cheapest <= MAX_PRICE else "ℹ️"
+                    print(f"{status} {date}: {cheapest} NOK")
+                else:
+                    # If no prices, it might be too far in the future
+                    print(f"ℹ️ {date}: No prices found (Booking may not be open yet)")
+            else:
+                print(f"❌ {date}: API Error {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ {date}: Script Error ({str(e)})")
+
+        # Entur allows about 30 requests per minute on this free tier
+        time.sleep(1)
+
+    print("--- Check Complete ---")
 
 if __name__ == "__main__":
-    check_fares()
+    run_fare_check()
