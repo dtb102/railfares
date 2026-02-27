@@ -25,21 +25,23 @@ def run_fare_check_entur():
         # API expects ISO format
         search_date = target_date.strftime('%Y-%m-%d')
         
-        # --- FIXED QUERY ---
+        # --- FIXED QUERY STRUCTURE ---
         query = """
-        query($from: String!, $to: String!, $date: String!) {
-          trip(
-            from: {place: $from},
-            to: {place: $to},
-            date: $date
-          ) {
-            tripPatterns {
-              startTime
-              duration
-              legs {
-                expectedPricing {
+        query($from: String!, $to: String!, $date: DateTime!) {
+          journeyPlanner {
+            trip(
+              from: {place: $from},
+              to: {place: $to},
+              dateTime: $date
+            ) {
+              tripPatterns {
+                startTime
+                duration
+                legs {
+                  expectedPricing {
                     amount
                     currency
+                  }
                 }
               }
             }
@@ -47,10 +49,11 @@ def run_fare_check_entur():
         }
         """
         
+        # We set the search time to 06:00 AM for the target day
         variables = {
             "from": FROM_STATION_ID,
             "to": TO_STATION_ID,
-            "date": search_date
+            "date": f"{search_date}T06:00:00"
         }
         
         try:
@@ -60,15 +63,15 @@ def run_fare_check_entur():
             if response.status_code == 200:
                 data = response.json()
                 
-                # --- DEBUG: Print raw response to understand data structure ---
-                print(f"DEBUG RAW DATA for {search_date}: {json.dumps(data, indent=2)}")
+                # --- DEBUG: Print raw response to confirm fix ---
+                # print(f"DEBUG RAW DATA for {search_date}: {json.dumps(data, indent=2)}")
                 # ---------------------------------------------------------------
 
-                trips = data.get('data', {}).get('trip', {}).get('tripPatterns', [])
+                # Updated path to trip patterns
+                trips = data.get('data', {}).get('journeyPlanner', {}).get('trip', {}).get('tripPatterns', [])
                 
                 prices = []
                 for trip in trips:
-                    # expectedPricing is often inside the legs
                     for leg in trip.get('legs', []):
                         price_data = leg.get('expectedPricing')
                         if price_data and price_data.get('amount'):
@@ -77,15 +80,15 @@ def run_fare_check_entur():
                 if prices:
                     cheapest = min(prices)
                     status = "✅ DEAL!" if cheapest <= MAX_PRICE else "ℹ️"
-                    print(f"{status} {target_date.strftime('%Y-%m-%d')}: {cheapest} NOK")
+                    print(f"{status} {search_date}: {cheapest} NOK")
                 else:
-                    print(f"ℹ️ {target_date.strftime('%Y-%m-%d')}: No prices found")
+                    print(f"ℹ️ {search_date}: No prices found")
                     
             else:
-                print(f"❌ {target_date.strftime('%Y-%m-%d')}: Entur error {response.status_code}")
+                print(f"❌ {search_date}: Entur error {response.status_code}")
                 
         except Exception as e:
-            print(f"❌ {target_date.strftime('%Y-%m-%d')}: Error ({str(e)})")
+            print(f"❌ {search_date}: Error ({str(e)})")
 
     print("--- Check Complete ---")
 
