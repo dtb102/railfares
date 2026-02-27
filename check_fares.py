@@ -5,19 +5,17 @@ import json
 
 def run_fare_check_entur():
     # --- CONFIGURATION ---
-    # Entur uses IDs for stations, but for search, names usually work 
-    # if they are precise.
-    FROM_STATION = "Bergen"
-    TO_STATION = "Moss"
+    # Using specific NSR IDs for accuracy
+    FROM_STATION_ID = "NSR:StopPlace:59871" # Bergen
+    TO_STATION_ID = "NSR:StopPlace:58385"   # Moss
     DAYS_TO_SCAN = 28
     MAX_PRICE = 450
     
     print(f"--- Entur Fare Report: {datetime.now().strftime('%Y-%m-%d')} ---")
-    print(f"Searching for {FROM_STATION} to {TO_STATION}...")
+    print(f"Searching from {FROM_STATION_ID} to {TO_STATION_ID}...")
 
     headers = {
         "Content-Type": "application/json",
-        # Entur requests a specific User-Agent identifying your application
         "ET-Client-Name": "railfares-bot-dtb102" 
     }
 
@@ -25,10 +23,10 @@ def run_fare_check_entur():
 
     for i in range(DAYS_TO_SCAN):
         target_date = (datetime.now() + timedelta(days=i))
-        # Entur requires ISO 8601 format with timezone
-        start_time = target_date.strftime('%Y-%m-%dT00:00:00Z')
+        # Start searching from 06:00 to cover morning trains
+        start_time = target_date.strftime('%Y-%m-%dT06:00:00Z')
         
-        # GraphQL Query
+        # GraphQL Query - Enhanced to look for specific trip types
         query = """
         query($from: String!, $to: String!, $date: DateTime!) {
           trip(
@@ -38,6 +36,7 @@ def run_fare_check_entur():
             transportModes: [{transportMode: rail}]
           ) {
             tripPatterns {
+              startTime
               expectedPricing {
                 amount
                 currency
@@ -48,13 +47,13 @@ def run_fare_check_entur():
         """
         
         variables = {
-            "from": FROM_STATION,
-            "to": TO_STATION,
+            "from": FROM_STATION_ID,
+            "to": TO_STATION_ID,
             "date": start_time
         }
         
         try:
-            time.sleep(1) # Be polite
+            time.sleep(1) 
             response = requests.post(url, json={"query": query, "variables": variables}, headers=headers, timeout=10)
             
             if response.status_code == 200:
@@ -75,10 +74,10 @@ def run_fare_check_entur():
                     print(f"ℹ️ {target_date.strftime('%Y-%m-%d')}: No prices found")
                     
             else:
-                print(f"❌ {target_date.strftime('%Y-%m-%d')}: Entur returned error {response.status_code}")
+                print(f"❌ {target_date.strftime('%Y-%m-%d')}: Entur error {response.status_code}")
                 
         except Exception as e:
-            print(f"❌ {target_date.strftime('%Y-%m-%d')}: Technical error ({str(e)})")
+            print(f"❌ {target_date.strftime('%Y-%m-%d')}: Error ({str(e)})")
 
     print("--- Check Complete ---")
 
