@@ -1,40 +1,59 @@
 import requests
+from datetime import datetime, timedelta
+import time
 import sys
 
-def run_diagnostic():
-    print("--- Starting Diagnostic ---")
+def run_fare_check():
+    # Bergen Stasjon to Moss Stasjon
+    FROM_ID = "NSR:StopPlace:59885"
+    TO_ID = "NSR:StopPlace:58957"
+    DAYS_TO_SCAN = 2
+    
+    print(f"--- VERBOSE Report: {datetime.now().strftime('%Y-%m-%d')} ---")
     sys.stdout.flush()
 
-    # The exact endpoint we are trying to use
-    url = "https://api.entur.io/journey-planner/v3/graphql"
-    
-    # Simple test query to Entur
-    query = "{ __schema { types { name } } }"
-    
     headers = {
-        "ET-Client-Name": "diagnostic-tracker",
+        "ET-Client-Name": "personal-fare-checker-2026",
         "Content-Type": "application/json"
     }
 
-    try:
-        print(f"Connecting to {url}...")
+    # Test only 2 days to keep the log small
+    for i in range(DAYS_TO_SCAN):
+        date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
+        print(f"Attempting to check: {date}")
         sys.stdout.flush()
         
-        # Try a quick connection
-        response = requests.post(url, json={'query': query}, headers=headers, timeout=10)
+        url = "https://api.entur.io/journey-planner/v3/graphql"
         
-        print(f"Response Status Code: {response.status_code}")
-        
-        if response.status_code == 200:
-            print("✅ Success: Successfully connected to Entur API.")
-        else:
-            print(f"❌ Failed: API returned code {response.status_code}")
+        # Explicit query
+        query = """
+        {
+          trip(from: {place: "%s"}, to: {place: "%s"}, dateTime: "%sT08:00:00") {
+            tripPatterns {
+              price { amount }
+            }
+          }
+        }
+        """ % (FROM_ID, TO_ID, date)
+
+        try:
+            print("Sending request...")
+            sys.stdout.flush()
+            response = requests.post(url, json={'query': query}, headers=headers, timeout=15)
             
-    except Exception as e:
-        print(f"❌ Failed: Could not connect to API. Error: {str(e)}")
-        
+            print(f"Status Code: {response.status_code}")
+            # --- THIS LINE IS THE KEY ---
+            print(f"Raw Response: {response.text}")
+            sys.stdout.flush()
+            
+        except Exception as e:
+            print(f"❌ Connection Error: {str(e)}")
+            sys.stdout.flush()
+
+        time.sleep(1)
+
+    print("--- Check Complete ---")
     sys.stdout.flush()
-    print("--- Diagnostic Complete ---")
 
 if __name__ == "__main__":
-    run_diagnostic()
+    run_fare_check()
