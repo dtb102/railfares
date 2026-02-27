@@ -8,7 +8,7 @@ def check_fares():
         "Content-Type": "application/json"
     }
 
-    # Query structured to look for fares at the Trip level
+    # Query structured to look for fares within TripPatterns
     query = """
     {
       trip(
@@ -19,19 +19,20 @@ def check_fares():
         tripPatterns {
           startTime
           duration
+          # Trying to look for fares here
+          fares {
+            coins
+            currency
+          }
           legs {
             mode
           }
-        }
-        fares {
-          coins
-          currency
         }
       }
     }
     """
 
-    print("--- Fetching Fares from Trip Level ---")
+    print("--- Fetching Fares from TripPattern Level ---")
     response = requests.post(url, json={'query': query}, headers=headers)
     
     if response.status_code == 200:
