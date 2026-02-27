@@ -3,59 +3,66 @@ from datetime import datetime, timedelta
 import time
 
 # Settings
-DAYS_TO_CHECK = 10
-PRICE_THRESHOLD = 450 
+ORIGIN = "Bergen"
+DESTINATION = "Moss"
+DAYS_TO_CHECK = 28
+PRICE_THRESHOLD = 399 # Notify if cheaper than this
 
-def get_cheapest_fare(date):
-    # Vy's web API endpoint
+# We use a header to identify the script as a search routine
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) FareChecker/1.0",
+    "Accept": "application/json"
+}
+
+def get_fare(date):
+    # Public Vy Search API
     url = "https://api.vy.no/travel-options/search"
-    
-    # We add "Headers" to look like a real web browser
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json",
-    }
-    
     params = {
-        "from": "Bergen",
-        "to": "Moss",
+        "from": ORIGIN,
+        "to": DESTINATION,
         "date": date,
-        "adultCount": 1,
-        "studentCount": 0
+        "adultCount": 1
     }
     
     try:
-        response = requests.get(url, params=params, headers=headers, timeout=10)
+        response = requests.get(url, params=params, headers=HEADERS, timeout=15)
         
+        # If we get blocked (Error 403), this will tell us
         if response.status_code != 200:
-            return f"Error: {response.status_code}"
+            return f"Status {response.status_code}"
 
         data = response.json()
+        itineraries = data.get('itineraries', [])
         
-        # Pulling prices from the Vy response structure
         prices = []
-        for trip in data.get('itineraries', []):
-            if 'price' in trip and 'amount' in trip['price']:
-                prices.append(trip['price']['amount'])
+        for trip in itineraries:
+            price_val = trip.get('price', {}).get('amount')
+            if price_val:
+                prices.append(price_val)
         
-        return min(prices) if prices else "No trains found"
+        return min(prices) if prices else "No prices found"
     except Exception as e:
-        return f"Script Error: {str(e)}"
+        return f"Error: {str(e)}"
 
+# --- Execution Start ---
 print(f"--- Fare Report: {datetime.now().strftime('%Y-%m-%d')} ---")
+print(f"Checking {DAYS_TO_CHECK} days from {ORIGIN} to {DESTINATION}...")
 
 for i in range(DAYS_TO_CHECK):
+    # Calculate each date
     check_date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
-    cheapest = get_cheapest_fare(check_date)
     
-    if isinstance(cheapest, (int, float)):
-        if cheapest <= PRICE_THRESHOLD:
-            print(f"✅ ALERT: {check_date} is {cheapest} NOK!")
-        else:
-            print(f"ℹ️ {check_date}: {cheapest} NOK")
+    # Get the price
+    result = get_fare(check_date)
+    
+    # Print results immediately so we see progress in the logs
+    if isinstance(result, (int, float)):
+        icon = "✅" if result <= PRICE_THRESHOLD else "ℹ️"
+        print(f"{icon} {check_date}: {result} NOK")
     else:
-        # This will tell us exactly why it didn't find a price (e.g., "Error: 403")
-        print(f"❌ {check_date}: {cheapest}")
+        print(f"❌ {check_date}: {result}")
     
-    # Small pause so we don't overwhelm the Vy server
+    # Wait 1 second between requests to avoid being blocked
     time.sleep(1)
+
+print("--- Check Finished ---")
