@@ -22,7 +22,7 @@ def run_fare_check():
         
         url = "https://api.entur.io/journey-planner/v3/graphql"
         
-        # --- RE-CORRECTED GRAPHQL QUERY ---
+        # --- ATTEMPT #4: RESTRUCTURING QUERY ---
         query = """
         {
           trip(
@@ -35,18 +35,12 @@ def run_fare_check():
               expectedEndTime
               legs {
                 mode
-                serviceJourney {
-                  id
-                  line {
-                    id
-                  }
-                }
               }
-              # Fetching price via serviceJourney if available
-              estimatedPrices {
-                amount
-                currency
-              }
+            }
+            # Attempting to fetch prices outside of tripPatterns
+            estimatedPrices {
+              amount
+              currency
             }
           }
         }
@@ -62,23 +56,18 @@ def run_fare_check():
                     print(f"❌ {date}: GraphQL Error: {data['errors']}")
                     continue
 
-                trips = data.get('data', {}).get('trip', {}).get('tripPatterns', [])
+                trip_data = data.get('data', {}).get('trip', {})
                 
-                prices = []
-                for t in trips:
-                    # Looking for prices inside tripPattern
-                    if t.get('estimatedPrices'):
-                        for price_info in t['estimatedPrices']:
-                            if price_info.get('amount'):
-                                prices.append(price_info['amount'])
+                # Check for prices at the top level of the trip object
+                prices = trip_data.get('estimatedPrices', [])
                 
                 if prices:
-                    cheapest = min(prices)
-                    status = "✅ DEAL!" if cheapest <= MAX_PRICE else "ℹ️"
-                    print(f"{status} {date}: {cheapest} NOK")
+                    # Assuming we want the cheapest price if multiple are returned
+                    amount = min([p['amount'] for p in prices if 'amount' in p])
+                    status = "✅ DEAL!" if amount <= MAX_PRICE else "ℹ️"
+                    print(f"{status} {date}: {amount} NOK")
                 else:
-                    # If we still have no prices, let's see why
-                    print(f"ℹ️ {date}: No prices found (No estimatedPrices field).")
+                    print(f"ℹ️ {date}: No prices found (estimatedPrices empty or missing).")
                     
             else:
                 print(f"❌ {date}: API Error {response.status_code}")
