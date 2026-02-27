@@ -1,10 +1,11 @@
 import requests
 from datetime import datetime, timedelta
 import time
-import json # Import json for printing
+import json # Required for printing raw JSON for debugging
 
 def run_fare_check():
     # --- CONFIGURATION ---
+    # Stops: Bergen to Oslo (Example)
     FROM_ID = "NSR:StopPlace:59885"
     TO_ID = "NSR:StopPlace:58957"
     DAYS_TO_SCAN = 14
@@ -22,7 +23,7 @@ def run_fare_check():
         
         url = "https://api.entur.io/journey-planner/v3/graphql"
         
-        # Using a broader search to see if any trains exist
+        # GraphQL query to fetch trip patterns and prices
         query = """
         {
           trip(
@@ -48,9 +49,18 @@ def run_fare_check():
             
             if response.status_code == 200:
                 data = response.json()
+                
+                # Check for errors in the GraphQL response
+                if 'errors' in data:
+                    print(f"❌ {date}: GraphQL Error: {data['errors']}")
+                    continue
+
                 trips = data.get('data', {}).get('trip', {}).get('tripPatterns', [])
                 
-                prices = [t['price']['amount'] for t in trips if t.get('price')]
+                prices = []
+                for t in trips:
+                    if t.get('price') and t['price'].get('amount'):
+                        prices.append(t['price']['amount'])
                 
                 if prices:
                     cheapest = min(prices)
@@ -59,13 +69,16 @@ def run_fare_check():
                 else:
                     print(f"ℹ️ {date}: No prices found in response.")
                     # --- DEBUG: Print Raw Response ---
-                    # print(json.dumps(data, indent=2))
+                    print(f"--- DEBUG: Raw Response for {date} ---")
+                    print(json.dumps(data, indent=2))
+                    print("-----------------------------------")
             else:
                 print(f"❌ {date}: API Error {response.status_code}")
                 
         except Exception as e:
             print(f"❌ {date}: Script Error ({str(e)})")
 
+        # Be nice to the API
         time.sleep(1)
 
     print("--- Check Complete ---")
