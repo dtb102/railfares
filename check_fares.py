@@ -7,7 +7,7 @@ def run_fare_check():
     FROM_STATION = "Bergen"
     TO_STATION = "Moss"
     DAYS_TO_SCAN = 28
-    MAX_PRICE = 450  # We will mark prices below this with an alert
+    MAX_PRICE = 950  # We will mark prices below this with an alert
     
     print(f"--- Fare Report: {datetime.now().strftime('%Y-%m-%d')} ---")
     print(f"Searching for {FROM_STATION} to {TO_STATION} for the next {DAYS_TO_SCAN} days...")
