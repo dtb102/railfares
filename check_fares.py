@@ -5,13 +5,12 @@ import json
 
 def run_fare_check_entur():
     # --- CONFIGURATION ---
-    # Using specific NSR IDs for accuracy
     FROM_STATION_ID = "NSR:StopPlace:59871" # Bergen
     TO_STATION_ID = "NSR:StopPlace:58385"   # Moss
     DAYS_TO_SCAN = 28
     MAX_PRICE = 450
     
-    print(f"--- Entur Fare Report: {datetime.now().strftime('%Y-%m-%d')} ---")
+    print(f"--- Entur Detailed Report: {datetime.now().strftime('%Y-%m-%d')} ---")
     print(f"Searching from {FROM_STATION_ID} to {TO_STATION_ID}...")
 
     headers = {
@@ -23,17 +22,16 @@ def run_fare_check_entur():
 
     for i in range(DAYS_TO_SCAN):
         target_date = (datetime.now() + timedelta(days=i))
-        # Start searching from 06:00 to cover morning trains
+        # Start searching from 06:00
         start_time = target_date.strftime('%Y-%m-%dT06:00:00Z')
         
-        # GraphQL Query - Enhanced to look for specific trip types
+        # --- MODIFIED QUERY: Removed specific rail constraint ---
         query = """
         query($from: String!, $to: String!, $date: DateTime!) {
           trip(
             from: {place: $from},
             to: {place: $to},
-            startTime: $date,
-            transportModes: [{transportMode: rail}]
+            startTime: $date
           ) {
             tripPatterns {
               startTime
@@ -58,6 +56,11 @@ def run_fare_check_entur():
             
             if response.status_code == 200:
                 data = response.json()
+                
+                # Debug: Print raw response for the first day to see what's happening
+                if i == 0:
+                    print(f"DEBUG RAW RESPONSE (Day 0): {json.dumps(data, indent=2)}")
+
                 trips = data.get('data', {}).get('trip', {}).get('tripPatterns', [])
                 
                 prices = []
