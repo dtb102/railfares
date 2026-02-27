@@ -1,0 +1,19 @@
+name: Daily Train Fare Check
+on:
+  schedule:
+    - cron: '0 08 * * *' # Runs at 08:00 UTC every day
+  workflow_dispatch: # Allows manual run
+
+jobs:
+  check-fares:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install requests
+      - name: Run check
+        run: python check_fares.py
